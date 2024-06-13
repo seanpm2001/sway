@@ -2442,7 +2442,7 @@ impl ToDiagnostic for CompileError {
                 ),
                 hints: vec![],
                 help: vec![
-                    "Certify you are acessing a compatible version of the \"core\" library.".into()
+                    "Certify you are accessing a compatible version of the \"core\" library.".into()
                 ],
             },
            _ => Diagnostic {
