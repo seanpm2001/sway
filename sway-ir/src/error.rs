@@ -33,7 +33,7 @@ pub enum IrError {
     VerifyContractCallBadTypes(String),
     VerifyGepElementTypeNonPointer,
     VerifyGepFromNonPointer(String),
-    VerifyGepInconsistentTypes,
+    VerifyGepInconsistentTypes(String, Option<crate::Value>),
     VerifyGepOnNonAggregate,
     VerifyGetNonExistentPointer,
     VerifyInsertElementOfIncorrectType,
@@ -67,10 +67,20 @@ pub enum IrError {
     VerifyStoreToNonPointer(String),
     VerifyUntypedValuePassedToFunction,
 }
+impl IrError {
+    pub(crate) fn get_problematic_value(&self) -> Option<&Value> {
+        match self {
+            Self::VerifyGepInconsistentTypes(_, v) => v.as_ref(),
+            _ => None,
+        }
+    }
+}
 
 impl std::error::Error for IrError {}
 
 use std::fmt;
+
+use crate::Value;
 
 impl fmt::Display for IrError {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -191,8 +201,12 @@ impl fmt::Display for IrError {
             IrError::VerifyGepElementTypeNonPointer => {
                 write!(f, "Verification failed: GEP on a non-pointer.")
             }
-            IrError::VerifyGepInconsistentTypes => {
-                write!(f, "Verification failed: Struct field type mismatch.")
+            IrError::VerifyGepInconsistentTypes(error, _) => {
+                write!(
+                    f,
+                    "Verification failed: Struct field type mismatch: ({}).",
+                    error
+                )
             }
             IrError::VerifyGepFromNonPointer(ty) => {
                 write!(
