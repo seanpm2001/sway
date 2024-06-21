@@ -46,11 +46,25 @@ pub(crate) fn type_check_method_application(
             .by_ref()
             .with_help_text("")
             .with_type_annotation(type_engine.insert(engines, TypeInfo::Unknown, None));
+
         // Ignore errors in method parameters
         // On the second pass we will throw the errors if they persist.
         let arg_handler = Handler::default();
         let arg_opt = ty::TyExpression::type_check(&arg_handler, ctx, arg).ok();
+
+        // Check this type needs a second pass
         let has_errors = arg_handler.has_errors();
+        let is_not_concrete = arg_opt
+            .as_ref()
+            .map(|x| {
+                x.return_type
+                    .extract_inner_types(engines, IncludeSelf::Yes)
+                    .iter()
+                    .any(|x| !x.is_concrete(engines, IncludeNumeric::Yes))
+            })
+            .unwrap_or_default();
+        let needs_second_pass = has_errors || is_not_concrete;
+
         if index == 0 {
             // We want to emit errors in the self parameter and ignore TraitConstraintNotSatisfied with Placeholder
             // which may be recoverable on the second pass.
@@ -66,7 +80,8 @@ pub(crate) fn type_check_method_application(
             });
             handler.append(arg_handler);
         }
-        args_opt_buf.push_back((arg_opt, has_errors));
+
+        args_opt_buf.push_back((arg_opt, needs_second_pass));
     }
 
     // resolve the method name to a typed function declaration and type_check
@@ -114,6 +129,14 @@ pub(crate) fn type_check_method_application(
             } else {
                 index
             };
+
+            let tid = method
+                .parameters
+                .get(param_index)
+                .unwrap()
+                .type_argument
+                .type_id;
+
             // This arg_opt is None because it failed in the first pass.
             // We now try to type check it again, this time with the type annotation.
             let ctx = ctx
@@ -121,14 +144,7 @@ pub(crate) fn type_check_method_application(
                 .with_help_text(
                     "Function application argument type must match function parameter type.",
                 )
-                .with_type_annotation(
-                    method
-                        .parameters
-                        .get(param_index)
-                        .unwrap()
-                        .type_argument
-                        .type_id,
-                );
+                .with_type_annotation(tid);
             args_buf.push_back(
                 ty::TyExpression::type_check(handler, ctx, arg)
                     .unwrap_or_else(|err| ty::TyExpression::error(err, span.clone(), engines)),
